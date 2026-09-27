@@ -1,0 +1,99 @@
+# Keeps this repository in step with the `student` variant of CSwL.
+#
+# CSwL publishes each build of its `main` as the `latest` release of
+# github.com/cslib-community/CSwL. This workflow fetches the `student` part of
+# it (a public download, no credentials needed) and
+#
+#   - replaces the contents of `main` with `student-lean.tar.gz`, the Lake
+#     project students work in, keeping only `.git/` and `.github/`, and
+#     commits if anything changed;
+#   - deploys `student-html.tar.gz`, the book, to GitHub Pages.
+#
+# `.cswl-commit` records the CSwL commit last synced, so a run with nothing
+# new does nothing. Nothing is built here: this repository needs no Lean
+# toolchain.
+#
+# This repository is the template of the GitHub Classroom assignments, so
+# this file is copied into every student's repository. The `if` on the job
+# keeps it from running there.
+
+name: Sync from CSwL
+
+# Weekly, on Sunday at 23:00 Brasília time (02:00 UTC on Monday; GitHub reads cron
+# in UTC), and by hand from the "Actions" tab.
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'emap-nlp/book'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch the latest CSwL release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download latest --repo cslib-community/CSwL \
+            --pattern 'student-*.tar.gz' --pattern commit.txt \
+            --dir "$RUNNER_TEMP/release"
+
+      - name: Check whether it is new
+        id: check
+        run: |
+          if cmp -s "$RUNNER_TEMP/release/commit.txt" .cswl-commit; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already at CSwL@$(cat .cswl-commit)."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Replace the Lake project and commit
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+          tar -xzf "$RUNNER_TEMP/release/student-lean.tar.gz"
+          cp "$RUNNER_TEMP/release/commit.txt" .cswl-commit
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update from CSwL@$(cut -c1-7 .cswl-commit)"
+          git push origin HEAD:main
+
+      - name: Unpack the book
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          tar -xzf "$RUNNER_TEMP/release/student-html.tar.gz" -C "$RUNNER_TEMP/site"
+
+      - name: Upload the Pages artifact
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
