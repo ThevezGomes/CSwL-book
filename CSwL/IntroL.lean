@@ -13,13 +13,52 @@ namespace IntroL
 -- ## Termos e Tipos
 
 -- Em Lean, um termo é uma expressão sintaticamente válida que representa um
--- objeto e possui um tipo.
+-- objeto e possui um tipo. Podemos pensar nos tipos como categorias que
+-- classificam os termos. Na matemática do dia a dia, escrever `1 ∈ 2` soa
+-- estranho. O símbolo `∈` significa "pertence a" ou "é elemento de" e espera
+-- um conjunto à sua direita, e normalmente não usamos o literal `2` para
+-- representar um conjunto. A disciplina de tipos de Lean nos permite
+-- formalizar este conhecimento intuitivo.
 
--- Semanticamente, tipos como conjuntos, mas eles não são conjuntos. Podemos
--- pensar em tipos como classes para classificarmos termos. Com tipos podemos
--- impor uma disciplina que a matemática segue apenas implicitamente. No papel
--- podemos escrever `1 ∈ 2`, mas em Lean a tipagem marca a expressão como um
--- erro.
+-- E o literal numérico `2` não é necessariamente um `Nat` em Lean. Ele pode
+-- representar um número em vários tipos. O contexto decide qual tipo ele
+-- terá.
+
+#check (2 : Nat)
+#check (2 : Int)
+#check (2 : Rat)
+#check (2 : Float)
+
+-- Mas um decimal como o `3.5` não pode ser interpretado como `Nat`, embora
+-- possa ser um racional ou um número de ponto flutuante.
+
+sf_expect_failure
+  #check (3.5 : Nat)
+  #check (3.5 : Rat)
+  #check (3.5 : Float)
+
+-- E quando não existe contexto? Nesse caso, Lean recorre a um tipo *padrão*:
+-- literais como `2` são interpretados como `Nat`, e literais decimais como
+-- `3.5`, como `Float`.
+
+#check 2
+#check 3.5
+
+-- A escolha de `Nat` é natural por ser o tipo numérico mais básico da
+-- linguagem. Já a escolha de `Float` em vez de `Rat` reflete o fato de Lean
+-- ser uma linguagem de programação. `Float` faz parte do núcleo da linguagem
+-- e corresponde aos números de ponto flutuante do processador, eficientes
+-- para computação. Mas `Float` não representa os racionais: é uma aproximação
+-- finita, e `0.1 + 0.2` não é exatamente `0.3`.
+
+#check 2 + 3.5
+
+-- Se quisermos a soma de racionais, basta fornecer o contexto, isto é,
+-- indicar o tipo que desejamos para a expressão `(2 + 3.5 : Rat)`.
+
+-- Não entraremos aqui nos detalhes de como Lean interpreta literais
+-- numéricos, que envolvem as classes de tipos `OfNat` e `OfScientific`. O
+-- leitor interessado pode consultar (FRO, 2026).
 
 -- Alguns tipos básicos já estão definidos no sistema como `ℕ`, `ℤ`, `ℚ` ou
 -- `Bool`. Se `σ` e `τ` são tipos, `σ → τ` representa o tipo das funções de
@@ -62,24 +101,24 @@ def author : String := "Chomsky"
 
 -- ## Funções
 
--- O tipo `Nat → Nat` representa todas as funções que recebem um número natual
--- e devolvem um número natural. O termo `fun x : Nat => x * x` é uma
+-- O tipo `Nat → Nat` representa todas as funções que recebem um número
+-- natural e devolvem um número natural. O termo `fun x : Nat => x * x` é uma
 -- particular função deste tipo. Ao aplicar o termo `12 : Nat`, temos o
--- `144 : Nat` como resposta. Ao invés de `fun` podemos usar `λ` e ao invés de
--- `=>` podemos usar `↦`, em Lean podemos usar os caracteres unicode.
+-- `144 : Nat` como resposta. Ao invés de `fun` podemos usar o unicode `λ` e
+-- ao invés de `=>` podemos usar o unicode `↦`, sempre que possível preferimos
+-- usar os símbolos unicode.
 
 #check (λ x ↦ x * x) 12
 #eval (λ x ↦ x * x) 12
 
 -- Mas podemos nomear abstrações, principalmente quando queremos que elas
--- possam ser reusadas. E em Lean podemos usar caracteres unicode como
--- mostramos a seguir.
+-- possam ser reusadas.
 
 def square₁ : Nat → Nat :=
   fun x => x * x
 
--- Normalmente pode ser conveniente nomear os parâmetros de uma função. A
--- seguir, parâmetros de mesmo tipo podem ser agrupados.
+-- Normalmente pode ser conveniente nomear os parâmetros de uma função. E
+-- parâmetros de mesmo tipo podem ser agrupados.
 
 def square₂ (x : ℕ) : ℕ := x * x
 
@@ -91,36 +130,47 @@ def maximum (n k : Nat) : Nat :=
     k
   else n
 
--- O nome do argumento não importa, as duas funções abaixo são iguais, como
--- podemos comprovar pela prova abaixo usando `rfl`.
+-- Como em qualquer linguagem de programação, o nome usado para um argumento
+-- não importa, as duas funções abaixo são iguais, como podemos comprovar pela
+-- prova abaixo usando `rfl`.
 
 example :
     (λ (x : Nat) => x * x) = (λ (z : Nat) => z * z) := rfl
 
--- Nomes são definidos em `namespaces`. As definições deste capítulo estarão
--- no namespace `IntroL`. A notação `name.length` acima infere pelo tipo de
--- `name` que estamos falando da função `length` definida no namespace
--- `String` mesmo nome do tipo `String`. Ver (Christiansen, 2023).
+-- Os nomes são organizados em espaços de nomes hierárquicos chamados
+-- *namespaces*, coleções de nomes. Os namespaces são a principal forma de
+-- organização de APIs no Lean. Eles fornecem uma ontologia de operações,
+-- agrupando itens relacionados.
+
+-- As definições deste capítulo como `maximum` acima, estão no namespace
+-- `IntroL` aberto no topo deste arquivo. Identificadores com ponto, como
+-- `String.length`, são referências a identificadores declarados em um
+-- namespace diferente do corrente. Neste caso, a função `length` sobre o tipo
+-- `String`. No entanto, também podemos usar a notação com identificadores
+-- separados por ponto (*dot notation*) como em linguagens orientadas a
+-- objetos. Acima usamos `name.length` e Lean inferiu que o identificador
+-- `name` é do tipo `String`, e `String` além de um tipo é um namespace, logo
+-- Lean consegue inferir que `length` refere-se à função `String.length`. Para
+-- mais detalhes recomendamos a leitura de (FRO, 2026) e (Christiansen, 2023).
 
 -- Perguntado sobre um nome que foi definido, o `#check` responde com a
--- assinatura, e não com o tipo seta. Envolver o nome em parênteses força a
--- segunda forma. Mas as duas dizem o mesmo. As três versões de `square` tem o
--- mesmo tipo e como veremos, podemos provar que são iguais.
+-- assinatura, e não com o tipo. Envolver o nome em parênteses força a segunda
+-- forma. Mas as duas formas dizem a mesma coisa.
 
 #check square₂
 #check (square₂)
 
--- As vezes podemos querer introduzir uma constante ou tipo sem especificar
--- seu comportamento o valor. Para isso usamos `opaque`, um símbolo com o tipo
--- mas sem implementação. Exemplos de (Baanen et al., 2026).
+-- Às vezes podemos querer introduzir uma constante sem especificar seu
+-- comportamento. Para isso usamos `opaque`, um símbolo com o tipo mas sem
+-- implementação (FRO, 2026).
 
 opaque a : ℕ
 opaque b : ℕ
 opaque f : ℕ → ℕ
 opaque g : ℕ → ℕ → ℕ
 
--- Conferir tipo não demanda computação, logo o comando `#check` funciona
--- retornando o tipo da expressão sem avaliá-la.
+-- Conferir o tipo de uma expressão não demanda computar a expressão, logo o
+-- comando `#check` funciona retornando o tipo da expressão sem avaliá-la.
 
 #check g a
 
@@ -278,23 +328,19 @@ def scaleX (p : Point) (factor : Float) : Point :=
 
 -- ## Tipos Indutivos
 
--- Tipos indutivos vêm antes da recursão porque, em Lean, uma função recursiva
--- se escreve casando padrão sobre as formas de um tipo indutivo: sem o tipo
--- declarado, não há sobre o que recursar.
-
 -- A palavra-chave `inductive` declara um tipo listando as formas que seus
--- valores podem ter. Quando nenhuma forma carrega argumento, o tipo é uma
--- enumeração; quando carrega, é um registro variante; quando a forma se
--- refere ao próprio tipo sendo definido, é uma árvore. As três coisas são o
--- mesmo mecanismo.
+-- valores podem ter. Essa é a construção mais importante do curso. Como
+-- veremos nos capítulos a seguir, uma gramática escrita na Forma de
+-- Backus-Naur (BNF) é formalizada como um tipo `inductive`.
 
--- Essa é a construção mais importante do curso. Em Batalha Naval veremos que
--- uma gramática escrita na notação usual — a Forma de Backus-Naur — é
--- literalmente um tipo `inductive`, e daí em diante todo fragmento da língua
--- é declarado assim. A enumeração é o caso mais simples.
--- `deriving Repr, DecidableEq` pede que a exibição e o teste de igualdade
--- sejam gerados em vez de escritos à mão. Os dias da semana, nada mais são
--- dias da semana.
+-- Quando nenhuma forma carrega argumento, o tipo é uma enumeração. O tipo
+-- `Bool` é a enumeração de duas formas, dois construtores.
+
+#print Bool
+
+-- Outro exemplo muito comum é dado abaixo, o final `deriving Repr` pede que
+-- Lean gere automaticamente uma instância da classe `Repr` para `Day`, vide
+-- classes, para exibição dos valores do tipo.
 
 inductive Day where
   | monday
@@ -306,39 +352,58 @@ inductive Day where
   | sunday
 deriving Repr
 
--- ### Exercise (1 star): is-weekend ⭐
+-- Mas os construtores de um tipo indutivo também podem ter parâmetros e estes
+-- parâmetros podem ser do próprio tipo sendo definido. Quando isso ocorre,
+-- temos um tipo indutivo recursivo, como o tipo `Nat`. O construtor
+-- `Nat.succ` constrói o sucessor de um natural a partir de outro natural.
 
--- Complete `isWeekend`, que responde se o dia é sábado ou domingo.
+#print Nat
 
-def isWeekend (d : Day) : Bool :=
- sorry
-
--- O tipo `Bool` é a enumeração de duas formas, dois construtores. O tipo
--- `Nat` é o caso em que uma das formas se refere ao próprio tipo que está
--- sendo definido. Podemos usar `#print Nat` para mostrar a declaração do tipo
--- `Nat`.
+-- Os literais interpretados como naturais são formas convenientes de
+-- representar um termo canônico do tipo `Nat` a partir dos seus construtores.
 
 example : 2 = Nat.succ (Nat.succ Nat.zero) := rfl
 
--- ## Recursão
+-- Além dos construtores poderem ter parâmetros, um tipo indutivo também pode
+-- ser parametrizado por outro tipo, exemplos serão vistos nos capítulos
+-- seguintes.
 
--- Uma definição recursiva precisa de duas coisas: ter caso base, e chegar
--- nele. O segundo não é uma recomendação — é uma exigência que o compilador
--- verifica, e a definição é rejeitada se ele não conseguir ver que a recursão
--- termina.
+-- ## Casamento de Padrões, Recursão e Tipos Indutivos
 
--- Em `Nat`, os dois casos do tipo dão as duas coisas de uma vez. Casar por
--- `0` (`Nat.zero`) e `n + 1` (`Nat.succ n`). O caso base é `0`, e a chamada
--- recursiva recebe o `n` que estava dentro do `succ`, necessariamente menor.
--- Não há um terceiro caso a esquecer, e não há argumento para o qual a função
--- não responda.
+-- A forma mais natural em Lean de escrevermos funções para manipular tipos
+-- indutivos é via casamento de padrões (*pattern matching*). Na função
+-- abaixo, o operador `match` faz o casamento do parâmetro `d` do tipo `Day`.
+-- As equações `| ... => ...` devem cobrir todos os possíveis construtores do
+-- tipo `Day`, devem ser exaustivas. Abaixo, a última equação usa o
+-- *underscore* como um coringa, para indicar qualquer outro construtor
+-- diferente dos usados nas equações acima, cobrindo assim todos os 7
+-- construtores de `Day` (FRO, 2026).
 
--- O fatorial é o exemplo mínimo dessa forma: um caso base e um caso que chama
--- a si mesmo com um argumento menor.
+def isWeekend (d : Day) : Bool :=
+   match d with
+   | .saturday => true
+   | .sunday   => true
+   | _         => false
+
+-- Uma definição recursiva é uma definição que se referencia. Ela precisa de
+-- um caso base, e de uma forma de chegar no caso base. O segundo é uma
+-- exigência que o compilador verifica, e a definição é rejeitada se o
+-- compilador não conseguir provar que a recursão termina.
 
 def factorial : Nat → Nat
   | 0     => 1
   | n + 1 => (n + 1) * factorial n
+
+-- A função `factorial` acima é recursiva do tipo `Nat → Nat`. O `Nat`
+-- recebido como entrada é testado em duas equações. O primeiro caso é o caso
+-- base, o literal `0` é uma variação sintática do termo `Nat.zero`. A segunda
+-- equação é o construtor `Nat.succ`, a expressão `n + 1` é uma variação
+-- sintática de `Nat.succ n` (representam o mesmo termo canônico). O `n` é uma
+-- variável introduzida à esquerda do `=>` que pode ser usada na expressão à
+-- direita. Em `factorial` o operador `match` não foi usado explicitamente, o
+-- tipo `Nat → Nat` não está separado das equações por `:=` como em
+-- `isWeekend`. Lean entende então que as equações devem casar o antecedente
+-- do tipo seta.
 
 -- A mesma função sem casar padrão, decidindo o caso base com um `if`.
 -- Funciona, e serve de contraste: aqui o argumento da chamada recursiva é

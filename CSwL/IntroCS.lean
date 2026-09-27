@@ -308,17 +308,15 @@ def possibilities : Nat → Nat
   | 0 => 1
   | n + 1 => 2 * possibilities n
 
-#eval possibilities 10
-
--- Em Lean, podemos provar propriedades sobre funções, embora óbvio para este
--- caso, sabemos que a função `possibilities` computa basicamente a expressão
--- $2^n$. No passo indutivo é preciso desdobrar a potência, e há dois lemas
--- para isso: `Nat.pow_succ'` e `Nat.pow_succ`.
-
 example (n : Nat) : possibilities n = 2 ^ n := by
  induction n with
   | zero => rfl
   | succ k ih => rw [possibilities, ih, Nat.pow_succ']
+
+-- Em Lean, podemos provar propriedades sobre funções, embora óbvio para este
+-- caso, sabemos que a função `possibilities` computa basicamente a expressão
+-- `2^n`. No passo indutivo é preciso desdobrar a potência, e há dois lemas
+-- para isso: `Nat.pow_succ'` e `Nat.pow_succ`.
 
 -- Se você quiser apenas estudar a troca simples de informação factual, faz
 -- sentido concentrar-se no fragmento de língua natural que pode ser traduzido
@@ -416,39 +414,34 @@ example (n : Nat) : possibilities n = 2 ^ n := by
 
 -- ### Exercise (1 star): sentence-go-on ⭐
 
--- Pollard e Sag dão este exemplo de recursão que estende sentenças:
+-- Pollard e Sag dão este exemplo de recursão no inglês.
 
--- Sentences can go on.
--- Sentences can go on and on.
--- Sentences can go on and on and on.
--- Sentences can go on and on and on and on.
--- ...
+-- - Sentences can go on.
+-- - Sentences can go on and on.
+-- - Sentences can go on and on and on.
+-- - Sentences can go on and on and on and on.
+-- - ...
 
--- Dê uma descrição concisa do padrão de recursão — isto é, escreva o gerador.
--- `sentence n` deve produzir a sentença com `n` repetições de "and on".
+-- Escreva um gerador de sentenças da forma acima. Seu gerador deve receber
+-- como parâmetro o número de repetições de "and on".
 
--- Uma observação que economiza tempo: a recursão **não** cabe direto em
--- `sentence`, porque o ponto final tem de ficar sempre no fim. O que se
--- repete é o pedaço `" and on"`, e é ele que merece a função recursiva. Por
--- isso o esqueleto vem em duas partes.
-
--- `andOn n` são as `n` repetições de `" and on"`, sem mais nada.
+-- A recursão **não** cabe direto em `sentence`, porque o ponto final tem de
+-- ficar sempre no fim. O que se repete é o pedaço `" and on"`, e é ele que
+-- merece a função recursiva. Por isso o esqueleto vem em duas partes. A
+-- função `andOn n` gera as `n` repetições. E a sentença é o começo, mais as
+-- repetições, mais o ponto.
 
 def andOn : Nat → String
   | 0 => ""
   | n + 1 => " and on" ++ andOn n
 
--- E a sentença é o começo, mais as repetições, mais o ponto.
-
 def sentence (n : Nat) : String :=
   "Sentences can go on" ++ andOn n ++ "."
 
-#eval sentence 2
-
 -- _Quiz:_
 
--- Há infinitas sentenças em inglês? Ou segue que sentenças em inglês podem
--- ter comprimento infinito? Ou as duas coisas?
+-- Há infinitas sentenças em inglês? Ou as sentenças em inglês podem ter
+-- comprimento infinito? Ou as duas coisas?
 
 -- As propriedades de dupla articulação, recursão e contextualidade separam as
 -- línguas humanas dos sistemas comunicativos dos animais, como a dança das
