@@ -1,0 +1,5 @@
+# Lake's build directory -- `lake build` fills it with several gigabytes.
+/.lake
+
+# macOS Finder metadata.
+**/.DS_Store
