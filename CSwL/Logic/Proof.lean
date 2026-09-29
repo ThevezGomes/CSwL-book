@@ -86,7 +86,7 @@ example (z : Nat) : (λ x ↦ 2 * x) z = (fun y => y * 2) z := by
 -- está convidado a jogar NNG para uma boa introdução a provas no Lean.
 
 example (x q : Nat) : 37 * x + q = 37 * x + q :=
- sorry
+ rfl
 
 -- ## Lógica Proposicional em Lean
 
@@ -240,15 +240,46 @@ example (h : ¬¬P) : P := by
 -- Uma das leis de De Morgan vale construtivamente; a outra precisa do
 -- terceiro excluído.
 
-example : ¬(P ∨ Q) ↔ (¬P ∧ ¬Q) := sorry
+example : ¬(P ∨ Q) ↔ (¬P ∧ ¬Q) := by
+  constructor
+  · intro h₁
+    constructor
+    · intro hP
+      exact h₁ (Or.inl hP)
+    · intro hQ
+      exact h₁ (Or.inr hQ)
+  · intro h₁ h₂
+    cases h₂ with
+    | inl hP => exact h₁.1 hP
+    | inr hQ => exact h₁.2 hQ
 
-example : ¬(P ∧ Q) ↔ (¬P ∨ ¬Q) := sorry
+example : ¬(P ∧ Q) ↔ (¬P ∨ ¬Q) := by
+  constructor
+  · intro h₁
+    by_cases hP: P
+    · right
+      intro hQ
+      exact h₁ (And.intro hP hQ)
+    · left
+      exact hP
+  · intro h₁ h₂
+    obtain ⟨hP, hQ⟩ := h₂
+    cases h₁ with
+    | inl hnP => exact hnP hP
+    | inr hnQ => exact hnQ hQ
 
 -- ### Exercise (1 star): contrapositive ⭐
 
 -- Prove a contrapositiva. Só uma das direções precisa de raciocínio clássico.
 
-example : (P → Q) ↔ (¬Q → ¬P) := sorry
+example : (P → Q) ↔ (¬Q → ¬P) := by
+  constructor
+  · intro h₁ hnQ hP
+    exact hnQ (h₁ hP)
+  · intro h₁ hP
+    by_contra hnQ
+    have hnP := h₁ hnQ
+    exact hnP hP
 
 -- ### Exercise (1 star): exchange-prop ⭐
 
@@ -265,7 +296,7 @@ section
 variable (p q r s : Prop)
 
 def exchange : Prop :=
-  sorry
+  (p → q) ∧ (r → s) ∧ (p ∨ s) ∧ (q ∨ r)
 end
 
 -- ### Exercise (2 stars): implication-as-disj ⭐⭐
@@ -274,21 +305,31 @@ end
 -- Tente usar `by_cases`.
 
 example (P Q : Prop) : (P → Q) → ¬ P ∨ Q := by
-  sorry
+  intro h₁
+  by_cases hP: P
+  · right
+    exact h₁ hP
+  · left
+    exact hP
 
 -- ### Exercise (1 star): and-comm ⭐
 
 -- Prove que a conjunção é comutativa.
 
 example (P Q : Prop) : P ∧ Q ↔ Q ∧ P := by
- sorry
+ constructor
+ · intro h
+   exact ⟨h.2,h.1⟩
+ · intro h
+   exact ⟨h.2,h.1⟩
 
 -- ### Exercise (1 star): implication-transitivity ⭐
 
 -- Complete a prova abaixo.
 
 example (P Q R : Prop) (h : P → Q) (h2 : Q → R) : P → R := by
-  sorry
+  intro hP
+  exact h2 (h hP)
 
 -- ### Exercise (1 star): unfold-direct-proof ⭐
 
@@ -301,7 +342,9 @@ example (P Q R : Prop) (h : P → Q) (h2 : Q → R) : P → R := by
 def E (x y : Nat) : Prop := x = y
 
 example (x : Nat) : E x 1 → x ≠ 2 := by
-  sorry
+  intro h
+  unfold E at h
+  linarith
 
 -- ### Exercise (1 star): unfold-rw-conjunction ⭐
 
@@ -316,7 +359,12 @@ example (x : Nat) : E x 1 → x ≠ 2 := by
 -- tenta aplicar `rfl` logo após as reescritas.
 
 example (x y : Nat) : E x 0 ∧ E y 0 → x = y := by
-  sorry
+  intro h
+  unfold E at h
+  obtain ⟨h₁,h₂⟩ := h
+  rewrite [h₁]
+  rewrite [h₂]
+  rfl
 
 -- ### Exercise (2 stars): dresses ⭐⭐
 
@@ -401,22 +449,33 @@ include hA ha hC1 h1 h3 h4 in
 theorem vestidos : Ap ∧ Cb ∧ Ma := by
 
   have hnAa : ¬ Aa := by
-    sorry
+    intro hAa
+    have hAb := h1 hAa
+    exact h3 hAb
 
   have hAp : Ap := by
    cases hA with
    | inl hAa => exact absurd hAa hnAa
    | inr hx =>
-     sorry
+     cases hx with
+     | inl hAb => exact False.elim (h3 hAb)
+     | inr hAp => exact hAp
 
   have hCb : Cb := by
-    sorry
+    exact h4 hAp
 
   have hnCa : ¬ Ca :=  by
-    sorry
+    obtain ⟨_,h5,_⟩ := hC1
+    have h6 := h5 hCb
+    exact h6.1
 
   have hMa : Ma := by
-    sorry
+    cases ha with
+    | inl hMa => exact hMa
+    | inr hy =>
+      cases hy with
+      | inl hAa => exact False.elim (hnAa hAa)
+      | inr hCa => exact False.elim (hnCa hCa)
 
   exact ⟨hAp, hCb, hMa⟩
 
@@ -519,15 +578,18 @@ example: (∀ x , P x) → ∃ x, P x := by
 
 example {U : Type} (R : U → U → Prop) :
   (∃ y, ∀ x, R x y) → (∀ x, ∃ y, R x y) := by
- sorry
+  intro h x
+  obtain ⟨y, hy⟩ := h
+  use y
+  exact hy x
 
 -- ### Exercise (1 star): exists-witness ⭐
 
 -- Prove que `∃ n : Nat, n + n = 10`, exibindo a testemunha. Você pode usar
 -- `Exists.intro`.
 
-example : ∃ n : Nat, n + n = 10 := by
-  sorry
+example : ∃ n : Nat, n + n = 10 :=
+  Exists.intro 5 (by rfl)
 
 end FOL
 
@@ -594,4 +656,3 @@ example : (List.range 100000).length = 100000 := by
 -- capítulos seguintes e serão explicadas à medida que se fizerem necessárias.
 
 end Proof
-

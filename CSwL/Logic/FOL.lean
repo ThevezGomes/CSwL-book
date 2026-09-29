@@ -201,22 +201,22 @@ def D (tx : Term) : Formula Term := .atom "D" [tx]
 def Maria : Term := .struct "Maria" []
 
 def Fa : Formula Term :=
-  sorry
+  .forall_ x (.impl (P tx) (R Maria tx))
 
 def Fb : Formula Term :=
-  sorry
+  .exists_ x (.conj (P tx) (R tx Maria))
 
 def Fc : Formula Term :=
-  sorry
+  R Maria Maria
 
 def Fd : Formula Term :=
-  sorry
+  .forall_ x (.impl (P tx) (.exists_ y (.conj (D ty) (.neg (M tx ty)))))
 
 def Fe : Formula Term :=
-  sorry
+  .forall_ x (.impl (D tx) (.exists_ y (.conj (A ty) (.neg (M ty tx)))))
 
 def Ff : Formula Term :=
-  sorry
+  .forall_ x (.impl (D tx) (.exists_ y (.conj (A ty) (M ty tx))))
 
 end ExSchool
 
@@ -260,8 +260,8 @@ def F : Formula Variable :=
     (.conj (.disj (.atom "R" [x, y]) (.atom "S" [x, y, z]))
            (.atom "P" [x]))
 
-example : F.freeVars (fun x => [x]) = sorry :=
-  sorry
+example : F.freeVars (fun x => [x]) = [y,y,z] :=
+  by native_decide
 
 -- ### Exercise (1 star): ex-fol-closedform ⭐
 
@@ -271,7 +271,7 @@ example : F.freeVars (fun x => [x]) = sorry :=
 -- que têm a lista de livres vazia.
 
 def closedForm (f : Formula Variable) : Bool :=
-  sorry
+  f.freeVars (fun x => [x]) == []
 
 -- ### Exercise (1 star): ex-fol-remove-impl_equiv ⭐
 
@@ -282,7 +282,15 @@ def closedForm (f : Formula Variable) : Bool :=
 -- `equi`. Note que a função não depende do tipo `α`.
 
 def Formula.minimal {α : Type} (frm : Formula α) : Formula α :=
-  sorry
+  match frm with
+  | .neg f => .neg f.minimal
+  | .impl f1 f2 => .disj (.neg f1.minimal) f2.minimal
+  | .equi f1 f2 => .conj (.disj (.neg f1.minimal) f2.minimal) (.disj f1.minimal (.neg f2.minimal))
+  | .conj f1 f2 => .conj (f1.minimal) (f2.minimal)
+  | .disj f1 f2 => .disj (f1.minimal) (f2.minimal)
+  | .forall_ v f => .forall_ v (f.minimal)
+  | .exists_ v f => .exists_ v (f.minimal)
+  | f => f
 
 -- ### Exercise (2 stars): ex-fol-nnf ⭐⭐
 
@@ -308,14 +316,32 @@ def Formula.minimal {α : Type} (frm : Formula α) : Formula α :=
 
 mutual
 def nnfPos {α} (frm : Formula α) : Formula α :=
- sorry
+  match frm with
+  | .neg f => nnfNeg f
+  | .impl f g => .disj (nnfNeg f) (nnfPos g)
+  | .equi f g => .conj (.disj (nnfNeg f) (nnfPos g)) (.disj (nnfPos f) (nnfNeg g))
+  | .conj f g => .conj (nnfPos f) (nnfPos g)
+  | .disj f g => .disj (nnfPos f) (nnfPos g)
+  | .forall_ v f => .forall_ v (nnfPos f)
+  | .exists_ v f => .exists_ v (nnfPos f)
+  | _ => frm
 
 def nnfNeg {α} (frm : Formula α) : Formula α :=
- sorry
+  match frm with
+  | .top => .bot
+  | .bot => .top
+  | .neg f => nnfPos f
+  | .impl f g => .conj (nnfPos f) (nnfNeg g)
+  | .equi f g => .disj (.conj (nnfNeg f) (nnfPos g)) (.conj (nnfPos f) (nnfNeg g))
+  | .conj f g => .disj (nnfNeg f) (nnfNeg g)
+  | .disj f g => .conj (nnfNeg f) (nnfNeg g)
+  | .forall_ v f => .exists_ v (nnfNeg f)
+  | .exists_ v f => .forall_ v (nnfNeg f)
+  | _ => .neg (frm)
 end
 
 def Formula.nnf {α : Type} (f : Formula α) : Formula α :=
-  sorry
+  nnfPos f
 
 -- Um termo `t` é **livre para** a variável `v` na fórmula `F` se toda
 -- ocorrência livre de `v` em `F` pode ser substituída por `t` sem que nenhuma
@@ -411,7 +437,7 @@ def Assign.update {D : Type}
 -- podemos atualizar indicando que se a variável `x` for passada, ela deve
 -- agora estar associada ao valor `1`.
 
-def g0 : Assign Nat  := λ x ↦ 0
+def g0 : Assign Nat  := λ _x ↦ 0
 def g1 : Assign Nat  := g0.update x 1
 
 #eval [g0 x, g0 y, g1 x, g1 y]
@@ -611,10 +637,13 @@ abbrev Values := Fin 3
 def dom : List Values := [0, 1, 2]
 
 def int₁ (name : String) (as : List Values) : Bool :=
- sorry
+ match name, as with
+ | "R", [_,_] => true
+ | "P", [_] => false
+ | _, _ => false
 
 def int₂ (name : String) (as : List Values) : Bool :=
- sorry
+ int₁ name as
 
 def P (x : Variable) : Formula Variable :=
   .atom "P" [x]
@@ -635,13 +664,13 @@ def g0 : Assign Values :=
   fun _ => 0
 
 example : α₁.eval dom int₁ g0 varVal = false :=
-  sorry
+  by native_decide
 
 example : α₂.eval dom int₂ g0 varVal :=
-  sorry
+  by native_decide
 
 example : α₃.eval dom int₁ g0 varVal :=
-  sorry
+  by native_decide
 
 end ExModel
 
@@ -668,10 +697,13 @@ abbrev Values := Fin 2
 def dom : List Values := [0, 1]
 
 def int₁ (name : String) (as : List Values) : Bool :=
- sorry
+ match name, as with
+ | "A", [_] => false
+ | "B", [_] => true
+ | _, _ => false
 
 def int₂ (name : String) (as : List Values) : Bool :=
- sorry
+ int₁ name as
 
 -- All x are A and B
 def F₁ : Formula Variable :=
@@ -693,16 +725,16 @@ def g0 : Assign Values :=
   fun _ => 0
 
 example : F₁.eval dom int₁ g0 varVal = false :=
-  sorry
+  by native_decide
 
 example : F₂.eval dom int₁ g0 varVal :=
-  sorry
+  by native_decide
 
 example : F₃.eval dom int₂ g0 varVal :=
-  sorry
+  by native_decide
 
 example : F₄.eval dom int₂ g0 varVal = false :=
-  sorry
+  by native_decide
 
 end ExWeakStrong
 
@@ -1068,4 +1100,3 @@ example : ¬ Formula.ImpliesL [symmR, R ta tb] (R ta ta) := by
 end ExEntailsTerms
 
 end FOL
-

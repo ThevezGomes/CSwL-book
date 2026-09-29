@@ -190,9 +190,9 @@ opaque g : ℕ → ℕ → ℕ
 -- fechar o exemplo, use `rfl`.
 
 def sumOfSquares (m n : Nat) : Nat :=
- sorry
+ m * m + n * n
 
-example : sumOfSquares 3 4 = 25 := sorry
+example : sumOfSquares 3 4 = 25 := rfl
 
 -- Lean é uma linguagem muito extensiva, boa parte de Lean é escrita em Lean,
 -- usando os recursos de *meta programação*. Os operadores `+` ou `*` entre
@@ -455,10 +455,11 @@ def story : Nat → String
 -- Implemente `sumTo n` para devolver `0 + 1 + ... + n` e termine a prova de
 -- que a função está correta para a entrada `4`.
 
-def sumTo : Nat → Nat :=
-  sorry
+def sumTo : Nat → Nat
+  | 0 => 0
+  | n + 1 => (n+1) + sumTo n
 
-theorem sumTo_test : sumTo 4 = 10 := sorry
+theorem sumTo_test : sumTo 4 = 10 := rfl
 
 -- ## Listas e Polimorfismo
 
@@ -487,9 +488,11 @@ def size {α : Type} : List α → Nat
 -- Complete `sumList` que soma os elementos de uma lista.
 
 def sumList (ns : List Nat) : Nat :=
-  sorry
+  match ns with
+  | [] => 0
+  | x :: xs => x + sumList xs
 
-theorem sumList_test : sumList [1, 2, 3, 4] = 10 := sorry
+theorem sumList_test : sumList [1, 2, 3, 4] = 10 := rfl
 
 -- ### Exercise (1 star): count-zeros ⭐
 
@@ -497,10 +500,12 @@ theorem sumList_test : sumList [1, 2, 3, 4] = 10 := sorry
 -- lista passada.
 
 def countZeros (ns : List Nat) : Nat :=
-  sorry
+  match ns with
+  | [] => 0
+  | x :: xs => if x == 0 then 1 + countZeros xs else countZeros xs
 
 theorem countZeros_test : countZeros [0, 1, 0, 2, 0] = 3 :=
-  sorry
+  rfl
 
 -- ## O tipo `Option`
 
@@ -751,4 +756,3 @@ sf_expect_failure
 -- todos os tipos.
 
 end IntroL
-

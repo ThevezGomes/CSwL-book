@@ -133,10 +133,10 @@ example : Maria.form₁.names == ["MB", "MJ", "MT"] :=
 -- Dica: não repita ordenações.
 
 def Formula.namesL (fs : List Formula) : List String :=
-  sorry
+  (fs.map (fun f => f.namesRaw)).flatten.dedup.mergeSort (· ≤ ·)
 
 example : Formula.namesL [Maria.form₁, Maria.form₂] == ["MB", "MJ", "MT"] :=
-  sorry
+  by native_decide
 
 -- ### Exercise (1 star): collect-atoms-alternative ⭐
 
@@ -215,9 +215,9 @@ def A : Formula := .atom "Auro"
 def J : Formula := .atom "Joaquim"
 def C : Formula := .atom "Claudia"
 
-def depo1 : Formula := sorry
-def depo2 : Formula := sorry
-def depo3 : Formula := sorry
+def depo1 : Formula := .conj (.neg J) C
+def depo2 : Formula := .impl (.neg A) (.neg C)
+def depo3 : Formula := .conj C (.disj (.neg A) (.neg J))
 
 end Bangu
 
@@ -229,7 +229,7 @@ end Bangu
 -- conectivo `xor` para "ou exclusivo", usando os conectivos já definidos.
 
 def Formula.xor (f g : Formula) : Formula :=
-  sorry
+  .disj (.conj (.neg f) g) (.conj f (.neg g))
 
 -- Um termo do tipo `Formula` é um dado. Nenhum dos exercícios abaixo seriam
 -- possíveis em `Prop`. Não há como perguntar "quantos `∧` tem esta
@@ -255,20 +255,30 @@ def form3 : Formula :=
 -- decisão de uma proposição boleana e, se o resultado for true, transformar
 -- esse resultado em uma prova.
 
-def Formula.countOps : Formula → Nat :=
-  sorry
+def Formula.countOps : Formula → Nat
+  | .atom _ => 0
+  | .top => 0
+  | .bot => 0
+  | .neg f => f.countOps + 1
+  | .conj f g => f.countOps + g.countOps + 1
+  | .disj f g => f.countOps + g.countOps + 1
 
-example : form2.countOps = 3 := sorry
+example : form2.countOps = 3 := by decide
 
 -- ### Exercise (1 star): formula-depth ⭐
 
 -- Implemente uma função `depth` para calcular a profundidade da árvore de
 -- análise de uma fórmula.
 
-def Formula.depth : Formula → Nat :=
-  sorry
+def Formula.depth : Formula → Nat
+  | .atom _ => 0
+  | .top => 0
+  | .bot => 0
+  | .neg f => f.depth + 1
+  | .conj f g => 1 + max f.depth g.depth
+  | .disj f g => 1 + max f.depth g.depth
 
-example : form2.depth = 3 := sorry
+example : form2.depth = 3 := by native_decide
 
 -- ## Semântica de Lógica Proposicional
 
@@ -331,15 +341,19 @@ def form2 : Formula := .disj (.impl q p) (.conj r (.neg q))
 def form3 : Formula := .impl (.conj q (.neg p)) (.neg r)
 
 def v₁ (v : String) : Bool :=
- sorry
+ match v with
+ | "p" => false
+ | "q" => true
+ | "r" => false
+ | _ => false
 
-def v₂ (v : String) : Bool :=
- sorry
+def v₂ (_v : String) : Bool :=
+ false
 
-example : form1.eval v₁ = true  := sorry
-example : form1.eval v₂ = false := sorry
-example : form2.eval v₁ = false := sorry
-example : form3.eval v₂ = true  := sorry
+example : form1.eval v₁ = true  := by decide
+example : form1.eval v₂ = false := by decide
+example : form2.eval v₁ = false := by decide
+example : form3.eval v₂ = true  := by decide
 
 end TestVals
 
@@ -396,10 +410,10 @@ def Formula.contradiction (f : Formula) : Bool :=
 -- `native_decide`.
 
 def Formula.contingent (f : Formula) : Bool :=
-  sorry
+  (!f.tautology) && (!f.contradiction)
 
 example : (Formula.atom "q").satisfiable := by
-  sorry
+  native_decide
 
 -- ### Exercise (1 star): ex-pl-satisfiable ⭐
 
@@ -411,10 +425,10 @@ namespace ExSat
 def p : Formula := .atom "p"
 def q : Formula := .atom "q"
 
-def F : Formula := sorry
+def F : Formula := .neg (.neg (.neg (.conj p q)))
 
 example : F.satisfiable ∧ F.depth = 4 := by
-  sorry
+  native_decide
 
 end ExSat
 
@@ -456,15 +470,15 @@ def F0 : Formula := .neg (.neg p)
 def F1 : Formula := .impl p q
 def F2 : Formula := .neg (.iff p q)
 
-example : F0.equivalent sorry :=
- sorry
+example : F0.equivalent p :=
+ by native_decide
 
-example : F1.equivalent sorry :=
- sorry
+example : F1.equivalent (.disj (.neg p) q) :=
+ by native_decide
 
 example : F2.equivalent
-   sorry :=
- sorry
+   (.xor p q) :=
+ by native_decide
 end ExEquiv
 
 -- ### Exercise (2 stars): implies-from-list ⭐⭐
@@ -474,7 +488,7 @@ end ExEquiv
 -- de um conjunto de fórmulas.
 
 def Formula.impliesL (hs : List Formula) (c : Formula) : Bool :=
-  sorry
+  Formula.implies (.conjs hs) c
 
 -- ### Exercise (2 stars): pl-consequence ⭐⭐
 
@@ -503,7 +517,17 @@ def q : Formula := .atom "q"
 example : p.implies (.disj p q) :=
   by native_decide
 
--- FILL IN HERE
+example: Formula.impliesL [p,q] (.neg p) = false :=
+  by native_decide
+
+example: (Formula.impl p q).implies (.impl (.neg p) (.neg q)) = false :=
+  by native_decide
+
+example: (Formula.neg q).implies (.impl p q) = false :=
+  by native_decide
+
+example: Formula.impliesL [.neg p, .impl q p] (.neg q) :=
+  by native_decide
 
 end Cons
 
@@ -516,10 +540,10 @@ end Cons
 
 namespace Bangu
 
-def banguSolution : Formula := sorry
+def banguSolution : Formula := .conjs [A, C, (.neg J)]
 
 example : Formula.impliesL [depo1, depo2, depo3] banguSolution = true :=
-  sorry
+  by native_decide
 
 end Bangu
 
@@ -661,4 +685,3 @@ theorem Formula.eval_iff_denote (f : Formula) (v : String → Bool) :
       simp [ihg, ihh]
 
 end PL
-
