@@ -16,13 +16,9 @@ namespace FOL
 -- logic") acrescenta os seguintes ingredientes a sintaxe da lógica
 -- proposicional:
 
--- - Termos para representar indivíduos de um domínio. Os termos poderão ser
---   variáveis ou funções aplicadas sobre termos;
-
+-- - Termos para representar indivíduos de um domínio;
 -- - Proposições básicas serão predicados `n`-ários sobre termos;
-
 -- - Fórmulas universalmente quantificadas, `∀` seguido de variável e fórmula;
-
 -- - Fórmulas existencialmente quantificadas, `∃` seguido de variável e fórmula.
 
 -- ## Sintaxe de FOL
@@ -38,19 +34,34 @@ namespace FOL
 structure Variable where
   name : String
   index : List Nat
-  deriving DecidableEq
+  deriving DecidableEq, Repr
 
-def Variable.format : Variable → Std.Format
+def Variable.toText : Variable → String
   | ⟨name, []⟩ => name
-  | ⟨name, [i]⟩ => name ++ toString i
+  | ⟨name, [i]⟩ => s!"{name}{i}"
   | ⟨name, is⟩ =>
     name ++ String.intercalate "_" (is.map toString)
 
-instance : Repr Variable := ⟨fun v _ => v.format⟩
+instance : ToString Variable := ⟨Variable.toText⟩
 
 def x : Variable := ⟨"x", []⟩
 def y : Variable := ⟨"y", []⟩
 def z : Variable := ⟨"z", []⟩
+
+-- A instrução `deriving Repr` gera, como em IntroL, uma instância de `Repr`,
+-- que o `#eval` usa para exibir o valor como um termo Lean, mostrando sua
+-- estrutura. Para exibir uma variável na notação usual da lógica,
+-- implementamos também uma instância da classe `ToString`, que converte um
+-- valor em `String`. Quando um tipo tem as duas instâncias, `#eval` usa a de
+-- `Repr`; para ver a notação, escrevemos `#eval toString`. As cadeias `s!"…"`
+-- funcionam como as `f!"…"` de IntroL, mas produzem uma `String`.
+
+#eval Variable.mk "x" [1]
+#eval toString <| Variable.mk "x" [1]
+
+-- No segundo `#eval`, o operador `<|`, que já usamos em IntroL, aplica a
+-- função à sua esquerda a tudo o que está à sua direita e dispensa os
+-- parênteses.
 
 -- Termos denotam objetos do domínio, e diferentes termos podem denotar um
 -- mesmo objeto como os termos `(5 + 3) × 4`, `8 × 4` e `32`. Para representar
@@ -60,16 +71,16 @@ def z : Variable := ⟨"z", []⟩
 inductive Term where
   | var (v : Variable)
   | struct (name : String) (args : List Term)
+  deriving Repr
 
-def Term.format : Term → Std.Format
-  | .var v => repr v
+def Term.toText : Term → String
+  | .var v => toString v
   | .struct name [] => name
   | .struct name args =>
     name ++ "[" ++
-      Std.Format.joinSep
-        (args.map Term.format) "," ++ "]"
+      String.intercalate "," (args.map Term.toText) ++ "]"
 
-instance : Repr Term := ⟨fun t _ => t.format⟩
+instance : ToString Term := ⟨Term.toText⟩
 
 def tx : Term := .var x
 def ty : Term := .var y
@@ -99,20 +110,21 @@ inductive Formula (α : Type) where
   | disj (f1 f2 : Formula α)
   | forall_ (v : Variable) (f : Formula α)
   | exists_ (v : Variable) (f : Formula α)
+  deriving Repr
 
 -- A conjunção e a disjunção são binárias, e `top` e `bot` são construtores
 -- próprios, o mesmo que fizemos para as fórmulas proposicionais.
 
 -- Note que o tipo `Formula` é diferente do tipo `PL.Formula` definido em
 -- pl-syntax, cada um em seu próprio `namespace`. Mais uma vez, estamos usando
--- Lean como metalinguagem para implementar FOL.. Em tipos dependentes, não
+-- Lean como metalinguagem para implementar FOL. Em tipos dependentes, não
 -- fazemos a distinção entre termos e fórmulas. Como vimos em IntroL, em Lean
 -- toda expressão é um termo e todo termo tem um tipo. Então quando falarmos
 -- em termos, ora estamos falando do termo Lean que pode representar uma
 -- `Formula` ou `Term` de FOL.
 
--- Também como fizemos para `PL.Formula`, a notação n-ária de `Formula.conj` e
--- `Formula.disj` introduzimos com as funções abaixo.
+-- Também como fizemos para `PL.Formula`, as funções abaixo introduzem as
+-- notações n-árias de `Formula.conj` e `Formula.disj`.
 
 def Formula.conjs {α : Type} : List (Formula α) → Formula α
   | [] => .top
@@ -124,38 +136,37 @@ def Formula.disjs {α : Type} : List (Formula α) → Formula α
   | [f] => f
   | f :: fs => .disj f (Formula.disjs fs)
 
--- Um termo (Lean) do tipo `Formula` não é muito legível, vamos implementar a
--- instância de `Repr` para controlar a exibição destes termos. Note que ela
--- demanda que o tipo `α` tenha também uma instância de `Repr`, que já
--- implementamos para `Variable` e `Term`.
+-- Como para `Variable` e `Term`, o `#eval` de uma fórmula exibe sua árvore de
+-- construtores, e uma instância de `ToString` dá a notação mais legível. Note
+-- que a instância demanda que o tipo `α` tenha também uma instância de
+-- `ToString`, que já implementamos para `Variable` e `Term`.
 
-def Formula.format {α} [Repr α] : Formula α → Std.Format
+def Formula.toText {α} [ToString α] : Formula α → String
   | .atom name [] => name
   | .atom name args =>
     name ++ "[" ++
-      Std.Format.joinSep (args.map (repr ·)) ", " ++ "]"
-  | .eq t1 t2 => f!"{repr t1} = {repr t2}"
-  | .neg f => f!"~{f.format}"
+      String.intercalate ", " (args.map toString) ++ "]"
+  | .eq t1 t2 => s!"{t1} = {t2}"
+  | .neg f => s!"~{f.toText}"
   | .impl f1 f2 =>
-    f!"({f1.format} ==> {f2.format})"
+    s!"({f1.toText} ==> {f2.toText})"
   | .equi f1 f2 =>
-    f!"({f1.format} <=> {f2.format})"
+    s!"({f1.toText} <=> {f2.toText})"
   | .top => "⊤"
   | .bot => "⊥"
   | .conj f1 f2 =>
-    f!"({f1.format} & {f2.format})"
+    s!"({f1.toText} & {f2.toText})"
   | .disj f1 f2 =>
-    f!"({f1.format} | {f2.format})"
-  | .forall_ v f => f!"∀{repr v} {f.format}"
-  | .exists_ v f => f!"∃{repr v} {f.format}"
+    s!"({f1.toText} | {f2.toText})"
+  | .forall_ v f => s!"∀{v} {f.toText}"
+  | .exists_ v f => s!"∃{v} {f.toText}"
 
-instance {α} [Repr α] : Repr (Formula α) :=
-  ⟨fun f _ => f.format⟩
+instance {α} [ToString α] : ToString (Formula α) :=
+  ⟨Formula.toText⟩
 
 -- A seguir, `R_reflexive` expressa que o predicado `R` é reflexivo enquanto
 -- `R_simetric` expressa que ele é simétrico. Note que para estes dois
--- exemplos, não precisamos usar termos envolvendo funções, logo usamos apenas
--- `Formula Variable`.
+-- exemplos, usamos apenas variáveis, logo basta `Formula Variable`.
 
 def R_reflexive : Formula Variable :=
   .forall_ x (.atom "R" [x, x])
@@ -226,6 +237,28 @@ end ExSchool
 -- e **fechada** (também chamada **sentença**) caso contrário. Por exemplo,
 -- `(P[x] ∧ ∃x, R[x,x])` é aberta, o `x` de `P[x]` está fora do escopo do
 -- `∃x`. Mas `∃y (P[y] ∧ ∃x R[x,x])` é uma sentença.
+
+-- THE FOLLOWING DETAILS CAN BE SKIPPED (Ligação e c-comando)
+-- A ligação também pode ser descrita pela árvore sintática da fórmula. Na
+-- árvore de `P[x] ∧ ∀x (Q[x] → R[x,y])`, os quantificadores e os conectivos
+-- são folhas, ao lado das fórmulas atômicas.
+
+-- •
+--      ┌──────┼──────┐
+--    P[x]     ∧      •
+--                ┌───┴───┐
+--                ∀x      •
+--                    ┌───┼────┐
+--                   Q[x] →  R[x,y]
+
+-- A raiz tem três filhos: P[x], ∧ e um nó interno. Esse nó tem os filhos ∀x e outro nó interno, cujos filhos são Q[x], → e R[x,y].
+
+-- O `∀x` liga as ocorrências de `x` em `Q[x]` e em `R[x,y]`, que estão abaixo
+-- do seu irmão na árvore, mas não a de `P[x]`, que está fora desse ramo. Essa
+-- relação entre um nó e os nós abaixo dos seus irmãos se chama **c-comando**.
+-- Ela vem da sintaxe das línguas naturais, e voltaremos a ela em Análise
+-- sintática.
+-- END DETAILS
 
 -- Coletar as variáveis livres de uma fórmula é uma operação recorrente.
 -- Abaixo, definimos a função freeVars que recebe como parâmetro uma função
@@ -319,19 +352,25 @@ def Formula.nnf {α : Type} (f : Formula α) : Formula α :=
 
 -- Um termo `t` é **livre para** a variável `v` na fórmula `F` se toda
 -- ocorrência livre de `v` em `F` pode ser substituída por `t` sem que nenhuma
--- das variáveis de `t` fique ligada. Por exemplo, `y` é livre para `x` em
--- `P[x] → ∀x P[x]`, mas o mesmo termo não é livre para `x` em
--- `∀y R[x,y] → ∀x R[x,x]`. Da mesma forma, `g[x,y]` não é livre para `x` em
--- `∀y R[x,y] → ∀x R[x,x]`.
+-- das variáveis de `t` fique ligada. Isto é, nenhuma ocorrência livre de `v`
+-- em `F` está no escopo de um quantificador cuja variável `u` ocorra em `t`.
+-- Por exemplo, `y` é livre para `x` em `P[x] → ∀x P[x]`: a única ocorrência
+-- livre de `x`, a de `P[x]`, não está no escopo de quantificador algum. Mas o
+-- mesmo termo não é livre para `x` em `∀y R[x,y] → ∀x R[x,x]`, porque a
+-- ocorrência livre de `x` em `R[x,y]` está no escopo de `∀y`. O `∀x` à
+-- direita não interfere: as ocorrências de `x` que ele liga não são livres e
+-- não seriam substituídas. Da mesma forma, `g[x,y]` não é livre para `x` em
+-- `∀y R[x,y] → ∀x R[x,x]`, pois contém `y`.
 
 -- Um termo livre para uma variável `v` pode ser substituído nas ocorrências
--- livres de `v` sem uma mudança não intencional de significado. Considere a
--- fórmula aberta `∀y R[x,y] → ∀x R[x,x]`. Se substituirmos a ocorrência livre
--- de `x` nessa fórmula por `y`, obtemos uma fórmula fechada
--- `∀y R[y,y] → ∀x R[x,x]`, uma variável acabou capturada. Se `t` não é livre
--- para `v` em `F`, podemos sempre renomear as variáveis ligadas de `F` para
--- garantir que a substituição de `t` por `v` em `F` tenha o significado
--- correto. Embora `g[y,c]` não seja livre para `x` em
+-- livres de `v` sem uma mudança de significado. A substituição age apenas
+-- sobre as ocorrências livres; as ocorrências ligadas, como as de `x` em
+-- `∀x R[x,x]`, não mudam. Considere a fórmula aberta `∀y R[x,y] → ∀x R[x,x]`.
+-- Se substituirmos a ocorrência livre de `x` nessa fórmula por `y`, obtemos
+-- uma fórmula fechada `∀y R[y,y] → ∀x R[x,x]`, uma variável acabou capturada.
+-- Se `t` não é livre para `v` em `F`, podemos sempre renomear as variáveis
+-- ligadas de `F` para garantir que a substituição de `v` por `t` em `F` tenha
+-- o significado correto. Embora `g[x,y]` não seja livre para `x` em
 -- `∀y R[x,y] → ∀x R[x,x]`, o termo é livre para `x` em
 -- `∀z R[x,z] → ∀x R[x,x]`, que é uma chamada **variante alfabética** (nomes
 -- diferentes para as variáveis ligadas) da fórmula original.
@@ -381,24 +420,28 @@ def openForm (f : Formula Term) : Bool :=
 
 -- ## Semântica de FOL
 
--- Em PL, uma função de atribuição de valor de verdade para os símbolos
--- proposicionais nos permite determinar o valor de verdade de uma fórmula. Em
--- FOL, uma interpretação de um vocabulário é uma estrutura que atribui
--- significado aos símbolos do vocabulário.
+-- Em PL, uma valoração dos símbolos proposicionais nos permite determinar o
+-- valor de verdade de uma fórmula. Em FOL, esse papel cabe a uma *estrutura*,
+-- que dá significado aos símbolos do vocabulário (ou assinatura) da
+-- linguagem: os símbolos predicativos e funcionais, cada um com sua aridade.
 
--- Uma estrutura `𝔸` é como um dicionário para traduzir a linguagem de
--- primeira ordem `L`. Uma estrutura nos dirá sobre qual coleção de coisas os
--- símbolos `∀` e `∃` quantificam, isto é, o conjunto `D`. A estrutura também
--- associa os símbolos predicativos de `L` a relações no domínio e os símbolos
--- funcionais a funções no domínio. Formalmente, a estrutura é o par, domínio
--- e interpretação.
+-- Uma estrutura $\mathcal A$ é como um dicionário para traduzir a linguagem
+-- de primeira ordem $L$. Ela nos diz sobre qual coleção de coisas os símbolos
+-- `∀` e `∃` quantificam, isto é, o domínio $D$, e, por meio de uma
+-- *interpretação* $I$, associa os símbolos predicativos de $L$ a relações no
+-- domínio e os símbolos funcionais a funções no domínio. Formalmente, a
+-- estrutura é o par $\mathcal A = (D, I)$. Quando for preciso separar a
+-- interpretação dos símbolos funcionais, escreveremos a tripla $\mathcal A =
+-- (D, I, F)$, como faremos na seção de consequência lógica.
 
--- Mas nossos termos podem ser conter variáveis então também precisamos
--- interpretar variávei em elementos do domínio. O tipo `Assign` mapea
--- variávies em elementos do domínio. A função `Assign.update` atualiza um
--- mapeamento de variáveis em elementos do domínio associando a variável `v` e
--- um novo elemento `d`, normalmente escrevemos `g[v := d]` para representar
--- esta idéia de que `g`
+-- Mas nossos termos podem conter variáveis, então também precisamos
+-- interpretar variáveis em elementos do domínio. Uma *atribuição* $g$ mapeia
+-- variáveis em elementos do domínio, e o tipo `Assign` a representa. A função
+-- `Assign.update` atualiza uma atribuição associando a variável `v` a um novo
+-- elemento `d`; normalmente escrevemos $g[v := d]$ para representar esta
+-- ideia. Ou seja, $g[v := d]$ é igual a $g$, exceto quando recebe $v$: neste
+-- caso retorna $d$, e para qualquer outra variável retorna o valor que $g$
+-- retornaria.
 
 def Assign (D : Type) := Variable → D
 
@@ -406,8 +449,8 @@ def Assign.update {D : Type}
   (g : Assign D) (v : Variable) (d : D) : Assign D :=
   fun w => if w = v then d else g w
 
--- A idéia é demostrada nos exemplos a seguir. Em um domínio dos naturais, a
--- partir de um mapeamento inicial onde qualquer variável é mapeada no `0`,
+-- A ideia é demonstrada nos exemplos a seguir. Em um domínio dos naturais, a
+-- partir de uma atribuição inicial em que qualquer variável é mapeada no `0`,
 -- podemos atualizar indicando que se a variável `x` for passada, ela deve
 -- agora estar associada ao valor `1`.
 
@@ -432,13 +475,16 @@ def liftAssign {D : Type} (fint : FInterp D) (g : Assign D) : Term → D
   | .var v => g v
   | .struct name args => fint name (args.map (liftAssign fint g))
 
--- Agora podemos definir quando uma fórmula `α` é verdadeira em uma estrutura
--- `𝔸`. Vamos usar a notação `𝔸 ⊧ α [g]` ou `⊧ α [𝔸,g]` para indicar que esta
--- relação de consequência depende da interpretação dos símbolos em `α` dada
--- por `𝔸` e da atribuição de variáveis a elementos do domínio dada por `g`. A
--- segunda notação é mais precisa, preservando a idéia de que consequência
--- lógica é uma relação entre fórmulas `β ⊧ α` ou entre uma listas de fórmulas
--- e uma fórmula `Δ ⊧ α`.
+-- Agora podemos definir quando uma fórmula $α$ é verdadeira em uma estrutura
+-- $\mathcal A$. Escrevemos $\mathcal A ⊨ α [g]$ para dizer que $\mathcal A$
+-- *satisfaz* $α$ sob a atribuição $g$: o resultado depende da interpretação
+-- dos símbolos de $α$ dada por $\mathcal A$ e da atribuição de variáveis a
+-- elementos do domínio dada por $g$. Quando $α$ é fechada, o resultado não
+-- depende de $g$, e escrevemos apenas $\mathcal A ⊨ α$. A relação de
+-- satisfação, entre uma estrutura e uma fórmula, não deve ser confundida com
+-- consequência lógica, uma relação entre fórmulas, $β ⊨ α$, ou entre uma
+-- lista de fórmulas e uma fórmula, $\Delta ⊨ α$, que definiremos mais
+-- adiante.
 
 -- O tipo `Interp` define o que é a interpretação de símbolos predicativos e
 -- seus argumentos para um valor boleano.
@@ -494,7 +540,7 @@ def Formula.eval {D α : Type} [DecidableEq D]
 
 def varVal {D : Type} (g : Assign D) (v : Variable) : D := g v
 
--- Vamos considerar uma linguagem FOL, tomado de (Enderton, 2001), com um
+-- Vamos considerar uma linguagem FOL, tomada de (Enderton, 2001), com um
 -- único símbolo predicado binário, `E`. Chamaremos esta linguagem de `L₁`.
 -- Uma estrutura para `L₁` deve conter um domínio de discurso `D`, formado por
 -- entidades e uma interpretação para `E`. O domínio tem quatro objetos, e uma
@@ -511,7 +557,7 @@ def edge : Vertex → Vertex → Bool
   | .c, .c => true
   | _,  _  => false
 
--- O tipo indutivo `Vertex` determinar quais são os objetos do nosso domínio.
+-- O tipo indutivo `Vertex` determina quais são os objetos do nosso domínio.
 -- Para avaliar uma fórmula quantificada, porém, será preciso percorrer o
 -- domínio, e para isso ele tem de estar disponível em uma coleção que possa
 -- ser percorrida, vamos usar uma lista. Então o tipo indutivo declara o
@@ -565,12 +611,12 @@ def someVertexLoops : Formula Variable :=
 def edgeIsSymmetric : Formula Variable :=
   .forall_ x (.forall_ y (.impl (E x y) (E y x)))
 
--- A primeira é a sentença corresponde a afirmação de que existe um vértice
--- para o qual nenhuma aresta aponta. É verdadeira, e a testemunha é o nó `d`.
--- A segunda é falsa pelo mesmo motivo, de `d` não sai aresta alguma. A
--- terceira é verdadeira por causa do laço em `c`. A quarta é falsa: há aresta
--- de `b` para `c`, mas não de `c` para `b`. Vale notar como a primeira soa em
--- língua natural mais complicada do que a versão simbólica.
+-- A primeira sentença corresponde à afirmação de que existe um vértice para o
+-- qual nenhuma aresta aponta. É verdadeira, e a testemunha é o nó `d`. A
+-- segunda é falsa pelo mesmo motivo, de `d` não sai aresta alguma. A terceira
+-- é verdadeira por causa do laço em `c`. A quarta é falsa: há aresta de `b`
+-- para `c`, mas não de `c` para `b`. Vale notar como a primeira soa em língua
+-- natural mais complicada do que a versão simbólica.
 
 -- Quando avaliamos fórmulas fechadas, sem variáveis livres, a atribuição `g`
 -- é irrelevante, mas ainda é preciso fornecer alguma para `Formula.eval`.
@@ -652,11 +698,12 @@ end ExModel
 -- 1. `∀ x, Ax ∧ Bx` significa algo mais forte que `∀ x, Ax → Bx` (todo A é B).
 -- 2. `∃ x, Ax → Bx` é mais fraco que `∃ x, Ax ∧ Bx` (alguns A são B).
 
--- Para confirmar (1), complete a definição de `int₁` construíndo uma
+-- Para confirmar (1), complete a definição de `int₁` construindo uma
 -- interpretação onde `∀ x, Ax → Bx` é verdadeira mas `∀ x, Ax ∧ Bx` é falsa.
--- Isto é, seja `M = (dom, int₁)` é um modelo que não satisfaz a restrição
--- mais forte `∀ x, Ax ∧ Bx`. Para confirmar (2), complete `int₂` com uma
--- interpretação onde `∃ x, Ax → Bx` é verdadeira mas `∃ x, Ax ∧ Bx` é falsa.
+-- Isto é, a estrutura `(dom, int₁)` é um modelo de `∀ x, Ax → Bx` que não
+-- satisfaz a restrição mais forte `∀ x, Ax ∧ Bx`. Para confirmar (2),
+-- complete `int₂` com uma interpretação onde `∃ x, Ax → Bx` é verdadeira mas
+-- `∃ x, Ax ∧ Bx` é falsa.
 
 -- Todos os exemplos deverão ser provados apenas com a tática `native_decide`.
 -- Note que nosso domínio é definido sobre os únicos dois possíveis valore de
@@ -706,7 +753,7 @@ example : F₄.eval dom int₂ g0 varVal = false :=
 
 end ExWeakStrong
 
--- Como segundo exemplo, vamos considerar uma linguagem `L₂` com interpretação
+-- Como segundo exemplo, vamos considerar uma linguagem `L₂` com uma estrutura
 -- também sobre os naturais. Precisamos de uma interpretação para os símbolos
 -- funcionais, uma para o símbolo de relação, e uma atribuição.
 
@@ -752,7 +799,7 @@ def frm₂ : Formula Term := .forall_ x (.exists_ y (.atom "R" [tx, ty]))
   (frm₁.eval dom intNat g3 (liftAssign intFNat),
    frm₂.eval dom intNat g3 (liftAssign intFNat))
 
--- Vale destacar os limites de nossa implemenação. Em FOL, `frm₂` sob o
+-- Vale destacar os limites de nossa implementação. Em FOL, `frm₂` sob o
 -- domínio dos naturais é verdadeira. Nossa implementação, no entanto, para
 -- ser decidível, processa apenas domínios finitos, listas.
 
@@ -763,30 +810,31 @@ def frm₂ : Formula Term := .forall_ x (.exists_ y (.atom "R" [tx, ty]))
 -- universal faz referência à noção de verdade para a fórmula
 -- `(P[x] → ∃y R[x,y])`, que é uma fórmula aberta. Para determinar se ela é
 -- verdadeira temos de saber qual elemento do domínio associar a `x`. A
--- situação é análoga à interpretação de pronomes nas linguas naturais.
+-- situação é análoga à interpretação de pronomes nas línguas naturais.
 
 -- 1. Todo mestre tem um aprendiz.
 -- 2. Ele tem um aprendiz.
 
--- Assim como definimos em PL. Uma sentença `α` em FOL é **válida**, `⊨ α`, se
--- é verdadeira em toda possível interpretação para a linguagem de `α`. Uma
--- sentença `C` é consequência lógica de uma sentença `P` (`P` de premissa,
--- `C` de conclusão) se todo modelo que torna `P` verdadeira também torna `C`
--- verdadeira. A notação é `P ⊨ C`.
+-- Assim como definimos em PL. Uma sentença $α$ em FOL é **válida**, $⊨ α$, se
+-- é verdadeira em toda estrutura para a linguagem de $α$. Uma estrutura
+-- $\mathcal A$ com $\mathcal A ⊨ α$ é um **modelo** de $α$. Escrevemos $P ⊨
+-- C$ para indicar que a sentença $C$ é consequência lógica da sentença $P$
+-- ($P$ de premissa, $C$ de conclusão). Isto ocorre se todo modelo de $P$ é
+-- também modelo de $C$.
 
--- Mas como julgar afirmações da forma `P ⊨ C`? Em FOL não temos a função
+-- Mas como julgar afirmações da forma $P ⊨ C$? Em FOL não temos a função
 -- `PL.Formula.allVals`, que enumera todas as possíveis valorações. Logo não
--- podemos decidir `P ⊧ C`. Podemos refutar a afirmação achando um
--- contraexemplo. Um contraexemplo para `P ⊨ C` é uma interpretação `I` com
--- `I ⊨ P` mas `I ⊭ C`.
+-- podemos decidir $P ⊨ C$. Podemos refutar a afirmação achando um
+-- contraexemplo. Um contraexemplo para $P ⊨ C$ é uma estrutura $\mathcal A$
+-- com $\mathcal A ⊨ P$ mas $\mathcal A ⊭ C$.
 
 -- ## Traduzindo `Formula` para `Prop`
 
 -- Como fizemos em PL, agora podemos mapear termos do tipo `Formula` em
 -- `Prop`. Temos `Formula.eval` que calcula o valor verdade de uma fórmula
--- para uma dada interpretação em `Bool`; `Formula.denote` produz a proposição
--- que a fórmula afirma. O tipo para interpretaçõa também precisa mudar,
--- `Interp` devolvia um `Bool`, `Denot` devolve uma `Prop`.
+-- para uma dada estrutura e atribuição em `Bool`; `Formula.denote` produz a
+-- proposição que a fórmula afirma. O tipo para interpretação também precisa
+-- mudar, `Interp` devolvia um `Bool`, `Denot` devolve uma `Prop`.
 
 abbrev Denot (D : Type) := String → List D → Prop
 
@@ -918,11 +966,13 @@ theorem frm₂_is_valid (I : Denot Nat)
 -- válidas, satisfatíveis e quando existe uma consequência lógica entre duas
 -- fórmulas.
 
-/-- A formula is valid when it is true in every model. -/
+/-- A formula is valid when it is true in every structure
+and under every assignment. -/
 def Formula.Valid (f : Formula Variable) : Prop :=
   ∀ (D : Type) (I : Denot D) (g : Assign D), f.denote I g varVal
 
-/-- A formula is satisfiable when some model makes it true. -/
+/-- A formula is satisfiable when it is true in some structure
+under some assignment. -/
 def Formula.Satisfiable (f : Formula Variable) : Prop :=
   ∃ (D : Type) (I : Denot D) (g : Assign D), f.denote I g varVal
 
@@ -930,7 +980,7 @@ def Formula.Satisfiable (f : Formula Variable) : Prop :=
 def Formula.Implies (f g : Formula Variable) : Prop :=
   (Formula.impl f g).Valid
 
--- ### Exercise (2 stars): ex-fol-valid ⭐⭐
+-- ### Exercise (5 stars): ex-fol-valid ⭐⭐⭐⭐⭐
 
 -- Complete as provas dos exemplos abaixo. Note que uma das afirmações não é
 -- válida: para ela, vamos precisar da interpretação `intR` como testemunha
@@ -969,7 +1019,7 @@ example :
 
 end ExValid
 
--- ### Exercise (2 stars): ex-fol-consequence ⭐⭐
+-- ### Exercise (5 stars): ex-fol-consequence ⭐⭐⭐⭐⭐
 
 -- Complete as provas dos exemplos abaixo. Note que uma das consequências
 -- lógicas não é válida. Apeans para este exemplo vamos precisar da
@@ -1003,9 +1053,10 @@ end ExEntailsOnlyVars
 
 -- Definimos `Formula.Valid` para `Formula Variable`, onde os argumentos dos
 -- predicados são apenas variáveis. Em `Formula Variable`, uma estrutura é o
--- par `(D, I)`, o domínio e a interpretação dos símbolos predicativos. Quando
--- há símbolos funcionais, a estrutura passa a ser a tripla`(D, I, F)` onde
--- `F` que diz qual elemento do domínio cada símbolo funcional nomeia. A
+-- par $\mathcal A = (D, I)$, o domínio e a interpretação dos símbolos
+-- predicativos. Quando há símbolos funcionais, a estrutura passa a ser a
+-- tripla $\mathcal A = (D, I, F)$, em que $F$ interpreta cada símbolo
+-- funcional como uma função, da aridade correspondente, sobre o domínio. A
 -- definição abaixo torna isso explícito: ela quantifica também sobre
 -- `FInterp`, e usa `liftAssign` no lugar de `varVal` para avaliar os termos.
 
@@ -1017,26 +1068,26 @@ def Formula.ValidT (f : Formula Term) : Prop :=
 
 -- Até aqui, nossa noção de consequência lógica relaciona **duas** fórmulas.
 -- Mas o argumento mais comum tem várias premissas: dizemos que `C` é
--- consequência de `P₁, …, Pₙ` quando todo modelo que torna todas as premissas
--- verdadeiras também torna `C` verdadeira. Assim como fizemos em PL, no
--- próximo exercício vamos definir a consequência lógica de um conjunto de
--- premissas em uma conclusão.
+-- consequência de `P₁, …, Pₙ` quando toda estrutura que é modelo de todas as
+-- premissas também é modelo de $C$. Assim como fizemos em PL, no próximo
+-- exercício vamos definir a consequência lógica de um conjunto de premissas
+-- em uma conclusão.
 
 -- ### Exercise (2 stars): ex-fol-implies-from-list ⭐⭐
 
 -- Assim como `PL.Formula.impliesL` fez em PL, complete a definição abaixo
--- para que possamos falar de `Δ ⊧ α`, a consequência lógica de uma lista de
+-- para que possamos falar de $Δ ⊨ α$, a consequência lógica de uma lista de
 -- fórmulas. Use `Formula.ValidT` e `Formula.conjs`.
 
 def Formula.ImpliesL (hs : List (Formula Term)) (c : Formula Term) : Prop :=
   sorry
 
--- ### Exercise (2 stars): ex-fol-entails ⭐⭐
+-- ### Exercise (5 stars): ex-fol-entails ⭐⭐⭐⭐⭐
 
 -- Complete os exemplos a seguir que envolvem provar a consequência lógica a
 -- partir de uma lista de premissas que envolvem fórmulas com termos. A
--- segunda não vale, e para mostrar isso basta exibir um modelo que satisfaça
--- as duas premissas e refute a conclusão.
+-- segunda não vale, e para mostrar isso basta exibir um modelo das duas
+-- premissas que não satisfaça a conclusão.
 
 namespace ExEntailsTerms
 
